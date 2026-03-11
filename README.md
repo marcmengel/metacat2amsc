@@ -1,10 +1,12 @@
 
-## metacat2openmetadata
+## meta_cat2open
 
-This is a gateway betweeen the MetaCat and OpenMetadata metadata catalogs
+This is a gateway script betweeen the MetaCat and AmSC metadata catalogs
 for sharing data between production MetaCat setups at Fermilab and the 
 American Science Cloud OpenMetadata catalog. 
 
-You can configure metadata queries for either direction to migrate metadata
-between the systems, usually time based ones to run regularly, and keep things
-in sync, but also queries for initial sync ups or special data additions.
+You can configure metadata queries direction to migrate metadata between the systems.
+
+Currently only metacat->AmSC is implemented at all.  But we should be able to do a 
+similar reverse mapping; we would have to put a field in the "extra" metadata to 
+reflect what was migrated on the AmSC / OpenMetadata side.
