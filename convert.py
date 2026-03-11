@@ -28,10 +28,16 @@ def put_update(s, cf, type, entity_dict)
 def convert(cfg):
     fq = cf.get("general", "file_query")
     dq = cf.get("general", "dataset_query")
-    mcu = cf.get("metacat", "url")`
+    mcsu = cf.get("metacat", "server_url")`
+    mcasu = cf.get("metacat", "auth_server_url")`
     mcuser = cf.get("metacat", "user")`
 
-    mcc = MetaCatClient(mcu)
+    # in development, we need an ssh tunnel to get to the AMSC API..."
+    tunnel = cf.get("general", "tunnel_command")
+    if tunnel:
+        os.system(tunnel)
+
+    mcc = MetaCatClient(server_url=mcsu, auth_server_url=mcasu)
     omc = requests.Session()
     omc.headers.update( {"Authorization": cf.get("openmetadata","jwt_token")})
 
@@ -73,4 +79,3 @@ def convert(cfg):
         else:
             res_data = put_update(s, cf, amsc_data)
 
-        
