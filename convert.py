@@ -2,6 +2,20 @@ from metacat.webapi import MetaCatClient
 import conversion_dicts import meta2open_dict
 import requests
 
+class AmSCClient:
+    def __init__(self, cf):
+        self.amsc_url = cf.get("general","amsc_url") 
+        self.sess = requests.Session()
+        omc.headers.update( {"Authorization": cf.get("openmetadata","jwt_token")})
+
+    def post_create(self, entity_dict)
+        resp = self.sess.post(f"{self.amsc_url}/catalog/{entity_dict['type']}", entity_dict)
+        return r.json()
+
+    def put_update(self, entity_dict)
+        resp = self.sess.put(f"{self.amsc_url}/catalog/{entity_dict['fqn']}", entity_dict)
+        return r.json()
+
 
 def field_convert(entry):
     res = {}
@@ -21,16 +35,6 @@ def field_convert(entry):
         res["ParentFQN"] = [ x["name"] for x in res["ParentFQN"] ]
     res["extra"] = extra
 
-def post_create(s, cf, type, entity_dict)
-    amsc_url = cf.get("general","amsc_url") 
-    resp = s.post(f"{amsc_url}/catalog/{entity_dict['type']}", entity_dict)
-    return r.json()
-
-def put_update(s, cf, type, entity_dict)
-    amsc_url = cf.get("general","amsc_url") 
-    resp = s.put(f"{amsc_url}/catalog/{entity_dict['fqn']}", entity_dict)
-    return r.json()
-
 def convert(cfg):
     fq = cf.get("general", "file_query")
     dq = cf.get("general", "dataset_query")
@@ -44,8 +48,7 @@ def convert(cfg):
         os.system(tunnel)
 
     mcc = MetaCatClient(server_url=mcsu, auth_server_url=mcasu)
-    omc = requests.Session()
-    omc.headers.update( {"Authorization": cf.get("openmetadata","jwt_token")})
+    amscc = AmSCClient(cf)
 
     mcc.login_token(cf.get("general", mcuser)
     
@@ -57,7 +60,7 @@ def convert(cfg):
 
         if not amsc_data["fqn"]:
             # not previously migrated
-            res_data = post_create(s, cf, amsc_data)
+            res_data = amscc.post_create(amsc_data)
             mcc.update_dataset(
                 namespace=d_entry["namespace"],
                 name=d_entry["name"],
@@ -65,7 +68,7 @@ def convert(cfg):
             )
         else:
             # previously migrated: update
-            res_data = put_update(s, cf, amsc_data)
+            res_data = amscc.put_update(amsc_data)
         
 
     file_list = mcc.query(fq)
@@ -78,7 +81,7 @@ def convert(cfg):
 
         if not amsc_data["fqn"]:
             # not previously migrated
-            res_data = post_create(s, cf, amsc_data)
+            res_data = amscc.post_create(amsc_data)
             mcc.update_file(
                 namespace=d_entry["namespace"],
                 name=d_entry["name"],
@@ -86,5 +89,5 @@ def convert(cfg):
             )
         else:
             # previously migrated
-            res_data = put_update(s, cf, amsc_data)
+            res_data = amscc.put_update(amsc_data)
 
