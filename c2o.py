@@ -1,12 +1,16 @@
 import argparse
 import configparser
+from convert import convert
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("-c", description="Config file", default="c2o.ini")
+    p.add_argument("-c", help="Config file", default="c2o.ini")
 
-    args = p.parse()
+    args = p.parse_args()
 
     config = configparser.ConfigParser()
-    cdata = config.read(args.c)
-    convert(cdata)
+    config.read(args.c)
+    convert(config)
+
+if __name__ == '__main__':
+    main()

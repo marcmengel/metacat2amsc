@@ -35,7 +35,7 @@ meta2amsc_dict = {
  "AmSC.reference.reference_type": "reference_type",
  "AmSC.reference.relationship_type": "relationship_type",
  "AmSC.reference.source_entity": "source_entity",
- "AmSC.reference.target_URI", "target_URI",
+ "AmSC.reference.target_URI": "target_URI",
 }
 
 amsc2meta_dict = { v: k for k,v in meta2amsc_dict.items() }
