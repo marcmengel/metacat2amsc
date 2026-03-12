@@ -19,7 +19,6 @@ meta2amsc_dict = {
  "AmSC.common.tags": "tags",
  "AmSC.common.version": "version",
  "AmSC.artifact.format": "format",
- "AmSC.artifact_collection.format": "format",
  "AmSC.ml_model.service_type": "service_type",
  "AmSC.ml_model.algorithm": "algorithm",
  "AmSC.ml_model.hyperparameters": "hyper_parameters",
