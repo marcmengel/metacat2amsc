@@ -10,12 +10,16 @@ class AmSCClient:
         omc.headers.update( {"Authorization": cf.get("openmetadata","jwt_token")})
 
     def post_create(self, entity_dict)
-        resp = self.sess.post(f"{self.amsc_url}/catalog/{entity_dict['type']}", entity_dict)
-        return r.json()
+        url = f"{self.amsc_url}/catalog/{entity_dict['type']}"
+        print("I would post {repr(entity_dict)}} to {url}")
+        # resp = self.sess.post(url , entity_dict)
+        #return resp.json()
 
     def put_update(self, entity_dict)
-        resp = self.sess.put(f"{self.amsc_url}/catalog/{entity_dict['fqn']}", entity_dict)
-        return r.json()
+        url = f"{self.amsc_url}/catalog/{entity_dict['fqn']}"
+        print("I would post {repr(entity_dict)}} to {url}")
+        #resp = self.sess.put(url, entity_dict)
+        #return resp.json()
 
 
 def field_convert(entry):
@@ -42,6 +46,7 @@ def field_convert(entry):
     res["extra"] = extra
 
 def convert(cfg):
+    print("entering convert")
     fq = cf.get("general", "file_query")
     dq = cf.get("general", "dataset_query")
     mcsu = cf.get("metacat", "server_url")`
@@ -51,6 +56,7 @@ def convert(cfg):
     # in development, we need an ssh tunnel to get to the AMSC API..."
     tunnel = cf.get("general", "tunnel_command")
     if tunnel:
+        print("running: {tunnel}") 
         os.system(tunnel)
 
     mcc = MetaCatClient(server_url=mcsu, auth_server_url=mcasu)
