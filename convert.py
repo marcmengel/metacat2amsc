@@ -28,12 +28,14 @@ def field_convert(entry):
         if k in meta2amsc_dict:
              res[meta2amsc_dict[k]] = entry[k]
         else:
-             extra[k] = entry[k]
+             extra[f"MetaCat.{k}"] = entry[k]
+
     for k in entry["metadata"]:
         if k in meta2amsc_dict:
              res[meta2amsc_dict[k]] = entry["metadata"][k]
         else:
              extra[k] = entry[k]
+
     # special conversion cases:
     if "ParentFQN" in res:
         res["ParentFQN"] = [ x["name"] for x in res["ParentFQN"] ]
