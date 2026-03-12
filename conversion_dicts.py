@@ -1,7 +1,6 @@
 
 
 meta2amsc_dict = {
- "id": "fqn",
  "name": "name",
  "owner": "owner",
  "size": "size",
