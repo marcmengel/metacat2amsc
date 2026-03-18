@@ -33,8 +33,10 @@ class InfoGetter:
 
     def get_files( self, basedir, do_checksums = False ):
         logger.debug(f"get_files: {basedir=}")
+        headers = self.token_header.copy()
+        headers["Depth"] = "1"
 
-        req = requests.Request('PROPFIND', basedir, headers=self.token_header)
+        req = requests.Request('PROPFIND', basedir, headers=headers)
         #req = requests.Request('PROPFIND', basedir)
         resp = self.s.send(req.prepare(), verify=False )
 
@@ -47,6 +49,8 @@ class InfoGetter:
         def start_element(name, attrs):
             nonlocal curname, filename, size
             curname = name
+            if name == "d:collection":
+               size = None
         def char_data(text):
             nonlocal curname, filename, size
             if curname == 'd:displayname':
@@ -55,7 +59,7 @@ class InfoGetter:
                 size = int(text)
         def end_element(name):
             nonlocal curname, filename, size
-            if name == 'd:response':
+            if name == 'd:response' and size != None:
                file_list.append((filename, size))
 
         xp = xml.parsers.expat.ParserCreate()
@@ -77,13 +81,14 @@ class InfoGetter:
             logger.debug(f"{url=}")
             resp = self.s.get(url, headers=self.token_header, verify=False)
             logger.debug(f"{resp.status_code=} {resp.text=}")
+            checksums = "{}"
             if resp.status_code == 200:
                 data = resp.json()
-                csvalue = data["checksums"][0]["value"]
-                cstype = data["checksums"][0]["type"].lower()
-                checksums = f'{{ "{cstype}": "{csvalue}" }}'
-            else:
-                checksums = "{}"
+                if data and "checksums" in data and data["checksums"]:
+                    csvalue = data["checksums"][0]["value"]
+                    cstype = data["checksums"][0]["type"].lower()
+                    checksums = f'{{ "{cstype}": "{csvalue}" }}'
+
             self.file_checksum_list.append( (filename, size, checksums, basedir))
 
     def get_file_list(self):
