@@ -1,4 +1,4 @@
-import configparser
+import argparse
 import requests
 import xml.parsers.expat
 import re
@@ -12,8 +12,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 class InfoGetter:
-    def __init__(self):
+    def __init__(self, namespace="amsc"):
         self.s = requests.Session()
+        self.namespace = namespace
         self.token_header = {
              "Authorization": f"Bearer {self.get_bearer_token()}",
          }
@@ -46,21 +47,25 @@ class InfoGetter:
         curname = None
         filename = None
         size = None
+
         def start_element(name, attrs):
             nonlocal curname, filename, size
+            logger.debug(f"start: {name}")
             curname = name
-            if name == "d:collection":
-               size = None
         def char_data(text):
             nonlocal curname, filename, size
+            logger.debug(f"text: {curname=} {text=}")
             if curname == 'd:displayname':
                 filename = text
             if curname == 'd:getcontentlength':
                 size = int(text)
         def end_element(name):
             nonlocal curname, filename, size
+            logger.debug(f"end: {name=} {size=}")
             if name == 'd:response' and size != None:
                file_list.append((filename, size))
+               size = None
+               filename = None
 
         xp = xml.parsers.expat.ParserCreate()
         xp.StartElementHandler = start_element
@@ -69,12 +74,12 @@ class InfoGetter:
         xp.Parse(resp.text)
 
         # first displayname is the directory itself, so skip it
-        file_list = file_list[1:]
-
 
         spos = basedir.find("/", 9)
         apibase = f"{basedir[0:spos]}/api/v1/namespace{basedir[spos:]}"
         apibase = apibase.replace(":2880/",":3880/")
+
+        logger.debug(f"before checksums: {file_list=}")
 
         for filename, size in file_list:
             url=f"{apibase}/{filename}?checksum=true"
@@ -90,84 +95,104 @@ class InfoGetter:
                     checksums = f'{{ "{cstype}": "{csvalue}" }}'
 
             self.file_checksum_list.append( (filename, size, checksums, basedir))
+        logger.debug(f"after checksums: {self.file_checksum_list=}")
 
     def get_file_list(self):
         return self.file_checksum_list
 
 
-def get_suffix(fname):
-     pos = fname.rfind(".")
-     if pos > 0:
-          suffix = fname[pos+1:]
-          if suffix == "gz":
-              return True, get_suffix(fname[:pos])[1]
-          return False, suffix
-     return False, ""
+    def get_suffix(self, fname):
+         pos = fname.rfind(".")
+         if pos > 0:
+              suffix = fname[pos+1:]
+              if suffix == "gz":
+                  return True, get_suffix(fname[:pos])[1]
+              return False, suffix
+         return False, ""
 
-# subset of legal iana application types
-iana_images=set([
-  "jpeg","gif","png","svg","tiff","fits"
-])
-iana_applications=set([
- "iges", "mp4"
-])
+    # subset of legal iana application types
+    iana_images=set([
+      "jpeg","gif","png","svg","tiff","fits"
+    ])
+    iana_applications=set([
+     "iges", "mp4"
+    ])
 
-def get_mimetype(suffix):
-     if not suffix:
-         mimetype = f"unknown"
-     elif suffix == "txt":
-         mimetype = "text/plain"
-     elif suffix.find("json") > 0:
-         mimetype = "text/javascript"
-     elif suffix in iana_applications :
-         mimetype = f"application/{suffix}"
-     else:
-         mimetype = f"application/X-{suffix}"
-     return mimetype
+    def get_mimetype(self, suffix):
+         if not suffix:
+             mimetype = f"unknown"
+         elif suffix == "txt":
+             mimetype = "text/plain"
+         elif suffix == "csv":
+             mimetype = "text/csv"
+         elif suffix.find("json") > 0:
+             mimetype = "text/javascript"
+         elif suffix in InfoGetter.iana_images:
+             mimetype = f"image/{suffix}"
+         elif suffix in InfoGetter.iana_applications:
+             mimetype = f"application/{suffix}"
+         else:
+             mimetype = f"application/X-{suffix}"
+         return mimetype
+
+    def generate(self, outfile):
+        ''' generate the metadata for the scanned directories '''
+
+        sep="["
+        for finfo in self.file_checksum_list:
+            gz, suffix = self.get_suffix(finfo[0])
+            mimetype = self.get_mimetype(suffix)
+                
+            print(f"""{sep}
+        {{
+            "name": "{finfo[0]}",
+            "namespace": "{self.namespace}",
+            "size": {finfo[1]},
+            "checksums": {finfo[2]},
+            "metadata": {{
+                "AmSC.common.description": "Description of file {finfo[0]} in {finfo[3]}",
+                "AmSC.common.display_name": "{finfo[0]}",
+                "AmSC.common.location": "{finfo[3]}/{finfo[0]}",
+                "AmSC.common.tags": "",
+                "AmSC.common.version": "",
+                "AmSC.artifact.format": "{mimetype}"
+            }}
+        }}""", end="", file=outfile)
+
+            sep=","
+
+        if self.file_checksum_list:
+            print("\n]", file=outfile)
+
  
 def main():
     level = logging.INFO
-    if len(sys.argv) == 1 or sys.argv[1] == "-h":
-        print("file_info.py -- make metadata upload file from dcache directories")
-        print("usage: python file_info.py [-h] [-d]  directory_url1 url2 ... > out.json")
-        print("  options:")
-        print("  -h: print this help message")
-        print("  -d: enable debug logging")
-        exit(1)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-d", "--debug", action="store_true", default=False)
+    parser.add_argument("-n", "--namespace",  default="amsc")
+    parser.add_argument("-o", "--outfile", default=None)
+    parser.add_argument("directory_url", default=[], nargs="+")
 
-    if sys.argv[1] == "-d":
+    args = parser.parse_args()
+
+    level = logging.INFO
+    if args.debug:
         level = logging.DEBUG
-        sys.argv = sys.argv[1:]
+
     logging.basicConfig(level=level)
 
-    ig = InfoGetter()
-    for basedir in sys.argv[1:]:
+    if args.outfile:
+        outfile = open(args.outfile, "w")
+    else:
+        outfile = sys.stdout
+
+    ig = InfoGetter(namespace=args.namespace)
+
+    for basedir in args.directory_url:
         ig.get_files(basedir.strip("/"))
 
-    sep="["
-    for finfo in ig.get_file_list():
-        gz, suffix = get_suffix(finfo[0])
-        mimetype = get_mimetype(suffix)
-            
-        print(f"""{sep}
-    {{
-        "name": "{finfo[0]}",
-        "namespace": "amsc",
-        "size": {finfo[1]},
-        "checksums": {finfo[2]},
-        "metadata": {{
-            "AmSC.common.description": "Description of file {finfo[0]} in {finfo[3]}",
-            "AmSC.common.display_name": "{finfo[0]}",
-            "AmSC.common.location": "{finfo[3]}/{finfo[0]}",
-            "AmSC.common.tags": "",
-            "AmSC.common.version": "",
-            "AmSC.artifact.format": "{mimetype}"
-        }}
-    }}""", end="")
+    ig.generate(outfile)
 
-        sep=","
-
-    print("\n]")
 
 if __name__ == "__main__":
     main()
