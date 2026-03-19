@@ -12,13 +12,14 @@ import logging
 logger = logging.getLogger(__name__)
 
 class InfoGetter:
-    def __init__(self, namespace="amsc"):
+    def __init__(self, namespace="amsc", dataset=None):
         self.s = requests.Session()
         self.namespace = namespace
         self.token_header = {
              "Authorization": f"Bearer {self.get_bearer_token()}",
          }
         self.file_checksum_list = []
+        self.dataset = dataset
 #
     def get_bearer_token(self):
         token = os.environ.get("BEARER_TOKEN")
@@ -138,6 +139,11 @@ class InfoGetter:
     def generate(self, outfile):
         ''' generate the metadata for the scanned directories '''
 
+        if self.dataset:
+            dataset_txt = f" from the {self.dataset} dataset"
+        else:
+            dataset_txt = ""
+
         sep="["
         for finfo in self.file_checksum_list:
             gz, suffix = self.get_suffix(finfo[0])
@@ -150,7 +156,7 @@ class InfoGetter:
             "size": {finfo[1]},
             "checksums": {finfo[2]},
             "metadata": {{
-                "AmSC.common.description": "Description of file {finfo[0]} in {finfo[3]}",
+                "AmSC.common.description": "File {finfo[0]}{dataset_txt} in {finfo[3]}",
                 "AmSC.common.display_name": "{finfo[0]}",
                 "AmSC.common.location": "{finfo[3]}/{finfo[0]}",
                 "AmSC.common.tags": "",
@@ -169,6 +175,7 @@ def main():
     level = logging.INFO
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--debug", action="store_true", default=False)
+    parser.add_argument("-s", "--dataset",  default="")
     parser.add_argument("-n", "--namespace",  default="amsc")
     parser.add_argument("-o", "--outfile", default=None)
     parser.add_argument("directory_url", default=[], nargs="+")
@@ -186,7 +193,7 @@ def main():
     else:
         outfile = sys.stdout
 
-    ig = InfoGetter(namespace=args.namespace)
+    ig = InfoGetter(namespace=args.namespace, dataset=args.dataset)
 
     for basedir in args.directory_url:
         ig.get_files(basedir.strip("/"))
