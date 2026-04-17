@@ -5,8 +5,8 @@ meta2amsc_dict = {
  "owner": "owner",
  "size": "size",
  "datasets": "parent_fqn",
- "updated_by": "updated_by",
- "updated_timestamp": "updated_at",
+ #"updated_by": "updated_by", # don't try to migrate updated dates
+ #"updated_timestamp": "updated_at",
  "AmSC.common.description": "description",
  "AmSC.common.display_name": "display_name",
  "AmSC.common.domains": "domains",

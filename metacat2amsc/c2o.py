@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import argparse
 import configparser
 from convert import convert, AmSCClient
@@ -10,12 +11,11 @@ def main():
     p.add_argument("-c", help="Config file", default="c2o.ini")
     p.add_argument("-d", help="Debugging on", default=False, action='store_true')
     p.add_argument("-q", help="Query instead" )
+    p.add_argument("-g", help="Get catalog fqn instead" )
 
     args = p.parse_args()
     if args.d:
         logger.setLevel(logging.DEBUG)
-
-        
 
     config = configparser.ConfigParser()
     config.read(args.c)
@@ -27,6 +27,12 @@ def main():
         res = c.query(args.q)
         print(f"Query Result: {repr(res)}")
         exit(0)
+    if args.g:
+        c = AmSCClient(config, None)
+        res = c.get(args.g)
+        print(f"Get Result: {repr(res)}")
+        exit(0)
+    
     convert(config)
 
 

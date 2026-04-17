@@ -1,70 +1,47 @@
 from metacat.webapi import MetaCatClient
 from conversion_dicts import meta2amsc_dict
 from version import __version
+from amsc_client import AmSCClient
 import os
 import json
 import requests
 import urllib.parse
 import logging
+import traceback
 logger = logging.getLogger(__name__)
 
 class fqncache:
     def __init__(self, mcc):
         self.fqnmap = {}
         self.mcc = mcc
+        whoami = self.mcc.auth_info()
+        if not whoami:
+            raise AuthenticationError("not logged into metacat")
 
     def register_fqn(self, name, namespace, fqn):
         did = f"{namespace}:{name}"
         self.fqnmap[did] = fqn
 
-    def lookup_fqn(self, name, namespace):
+    def lookup_fqn(self, namespace, name):
         did = f"{namespace}:{name}"
-        if not(did in self.fqnmap):
-            md = self.mcc.get_dataset(did)
+        if not self.fqnmap.get(did,""):
+            print(f"looking up fqn for {did}...")
+            try:
+                md = self.mcc.get_dataset(did=did)
+            except Exception as e:
+                print(f"failed looking up:")
+                traceback.print_exc()
+                exit(1)
+
             if md and "AmSC.common.fqn" in md["metadata"]:
                 self.fqnmap[did] = md["metadata"]["AmSC.common.fqn"]
+            else:
+                print(f"no fqn found in metadata {md=}")
+                exit(1)
+
         if not  self.fqnmap.get(did, ""):
             logger.warning(f"Error: Unable to find fqn for: {did}")
         return self.fqnmap.get(did, "")
-
-class AmSCClient:
-    def __init__(self, cf, fqncache):
-        self.amsc_url = cf.get("general","amsc_url") 
-        self.catalog_name = cf.get("general","catalog_name") 
-        self.sess = requests.Session()
-        #self.sess.headers.update( {"Authorization": cf.get("openmetadata","jwt_token")})
-        self.sess.headers.update( {"Authorization": f'Bearer {cf.get("openmetadata","jwt_token")}'})
-        self.fqncache = fqncache
-
-    def query(self, querystring, limit=0, offset=0):
-        url = f"{self.amsc_url}/search/catalog?q={urllib.parse.quote(querystring)}"
-        if limit:
-            url += f"&{limit=}"
-        if offset:
-            url += f"&{offset=}"
-        resp = self.sess.get(url)
-        return resp.json()
-
-    def post_create(self, entity_dict):
-        url = f"{self.amsc_url}/catalog/{self.catalog_name}/{entity_dict['type']}"
-        print(f"posting {json.dumps(entity_dict, indent=4)} to {url}")
-        resp = self.sess.post(url , json=entity_dict)
-        if resp.status_code != 200: 
-         
-             if resp.text.find("already exists") > 0:
-                 logger.info(f"Exists already: {entity_dict['name']}") 
-             else:        
-                 raise RuntimeError(f"got status {resp.status_code} for POST catalog entry: {resp.text}")
-        return resp.json()
-
-    def put_update(self, entity_dict):
-        url = f"{self.amsc_url}/catalog/{entity_dict['fqn']}"
-        print(f"posting {json.dumps(entity_dict, indent=4)} to {url}")
-        resp = self.sess.put(url, json=entity_dict)
-        if resp.status_code != 200:
-             raise RuntimeError(f"got status {resp.status_code} for PUT catalog entry: {resp.text}")
-        return resp.json()
-
 
 
 def field_convert(entry, fc):
@@ -99,6 +76,7 @@ def field_convert(entry, fc):
             res["parent_fqn"] = ",".join([ fc.lookup_fqn(x["namespace"], x["name"]) for x in res["parent_fqn"] ])
         except:
             print(f"unable to convert parent_fqn: {repr(res['parent_fqn'])}!")
+            res["parent_fqn"] = ""
 
     if "location" not in res:
         res["location"] = "http://www.fnal.gov/"
@@ -119,9 +97,10 @@ def convert(cf):
         print(f"running: {tunnel}") 
         os.system(tunnel)
 
-    mcc = MetaCatClient(server_url=mcsu, auth_server_url=mcasu)
+    #mcc = MetaCatClient(server_url=mcsu, auth_server_url=mcasu)
+    mcc = MetaCatClient()
     fc = fqncache(mcc)
-    amscc = AmSCClient(cf, fc)
+    amscc = AmSCClient(cf)
 
     #mcc.login_token(cf.get("general", mcuser))
 
@@ -139,24 +118,31 @@ def convert(cf):
             print(f"{d_entry=}")
             amsc_data = field_convert(d_entry, fc)
 
+            if amsc_data.get("fqn") and not amscc.get(amsc_data["fqn"]):
+                print("we think we migrated it, but its gone...")
+                del amsc_data["fqn"]
+
             if not amsc_data.get("fqn",None):
-                # not previously migrated
+                # not previously migrated, or deleted
                 if "fqn" in amsc_data:
                     del amsc_data["fqn"]
                 if "updated_by" in amsc_data:
                     del amsc_data["updated_by"]
                 if "updated_at" in amsc_data:
                     del amsc_data["updated_at"]
-                del amsc_data["parent_fqn"]
+                if "parent_fqn" in amsc_data and not amsc_data["parent_fqn"]:
+                    del amsc_data["parent_fqn"]
                 res_data = amscc.post_create(amsc_data)
 
-                # remember fqn, and update in metacat
-                fc.register_fqn(d_entry['namespace'], d_entry['name'], res_data.get("fqn",None))
+                if "fqn" in res_data:
+                    # remember fqn, and update in metacat
+                    fc.register_fqn(d_entry['namespace'], d_entry['name'], res_data.get("fqn",None))
 
-                mcc.update_dataset(
-                    dataset=f'{d_entry["namespace"]}:{d_entry["name"]}',
-                    metadata={"AmSC.common.fqn":res_data.get("fqn", "")},
-                )
+                    
+                    mcc.update_dataset(
+                        dataset=f'{d_entry["namespace"]}:{d_entry["name"]}',
+                        metadata={"AmSC.common.fqn":res_data.get("fqn", "")},
+                    )
             else:
                 # previously migrated: update
                 res_data = amscc.put_update(amsc_data)
@@ -173,22 +159,28 @@ def convert(cf):
 
             print(f"{file_info=}")
 
-            if not amsc_data.get("parent_fqn", None):
+            if not amsc_data.get("parent_fqn", ""):
                 print(f"Skipping file {file_info['name']}, parent dataset not migrated")
+                continue
+
+            if amsc_data.get("fqn") and not amscc.get(amsc_data["fqn"]):
+                print("we think we migrated it, but its gone...")
+                del amsc_data["fqn"]
 
             if not amsc_data.get("fqn",None):
-                # not previously migrated
+                # not previously migrated, or deleted
                 print(f"I would post {json.dumps(amsc_data,indent=4)}")
                 if "fqn" in amsc_data:
                     del amsc_data["fqn"]
                 if "updated_by" in amsc_data:
                     del amsc_data["updated_by"]
                 res_data = amscc.post_create(amsc_data)
-                mcc.update_file( 
-                    namespace=file_info["namespace"],
-                    name=file_info["name"],
-                    metadata={"AmSC.common.fqn": res_data["fqn"]}
-                )
+                if "fqn" in res_data:
+                    mcc.update_file( 
+                        namespace=file_info["namespace"],
+                        name=file_info["name"],
+                        metadata={"AmSC.common.fqn": res_data["fqn"]}
+                    )
             else:
                 # previously migrated
                 res_data = amscc.put_update(amsc_data)
