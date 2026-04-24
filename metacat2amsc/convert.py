@@ -25,18 +25,18 @@ class fqncache:
     def lookup_fqn(self, namespace, name):
         did = f"{namespace}:{name}"
         if not self.fqnmap.get(did,""):
-            print(f"looking up fqn for {did}...")
+            logging.debug(f"looking up fqn for {did}...")
             try:
                 md = self.mcc.get_dataset(did=did)
             except Exception as e:
-                print(f"failed looking up:")
+                logging.debug(f"failed looking up:")
                 traceback.print_exc()
                 exit(1)
 
             if md and "AmSC.common.fqn" in md["metadata"]:
                 self.fqnmap[did] = md["metadata"]["AmSC.common.fqn"]
             else:
-                print(f"no fqn found in metadata {md=}")
+                logging.debug(f"no fqn found in metadata {md=}")
                 exit(1)
 
         if not  self.fqnmap.get(did, ""):
@@ -75,7 +75,7 @@ def field_convert(entry, fc):
         try:
             res["parent_fqn"] = ",".join([ fc.lookup_fqn(x["namespace"], x["name"]) for x in res["parent_fqn"] ])
         except:
-            print(f"unable to convert parent_fqn: {repr(res['parent_fqn'])}!")
+            logging.debug(f"unable to convert parent_fqn: {repr(res['parent_fqn'])}!")
             res["parent_fqn"] = ""
 
     if "location" not in res:
@@ -86,7 +86,7 @@ def field_convert(entry, fc):
     return res
 
 def convert(cf):
-    print("entering convert")
+    logging.debug("entering convert")
     mcsu = cf.get("metacat", "server_url")
     mcasu = cf.get("metacat", "auth_server_url")
     #mcuser = cf.get("metacat", "user")
@@ -94,7 +94,7 @@ def convert(cf):
     # in development, we need an ssh tunnel to get to the AMSC API..."
     tunnel = cf.get("general", "tunnel_command")
     if tunnel:
-        print(f"running: {tunnel}") 
+        logging.debug(f"running: {tunnel}") 
         os.system(tunnel)
 
     #mcc = MetaCatClient(server_url=mcsu, auth_server_url=mcasu)
@@ -105,17 +105,17 @@ def convert(cf):
     #mcc.login_token(cf.get("general", mcuser))
 
     queries_list = cf.get("general", "query_list", fallback="general").split(" ")
-    print(f"{queries_list=}")
+    logging.debug(f"{queries_list=}")
     for qsect in queries_list:
 
         fq = cf.get(qsect, "file_query")
         dq = cf.get(qsect, "dataset_query")
 
-        print(f"querying: {dq}")
+        logging.debug(f"querying: {dq}")
         dataset_list = list(mcc.query(dq, with_metadata=True, with_provenance=True))
 
         for d_entry in dataset_list:
-            print(f"{d_entry=}")
+            logging.debug(f"{d_entry=}")
             amsc_data = field_convert(d_entry, fc)
 
             if 'fn.locations' in d_entry and d_entry['fn.locations']:
@@ -126,7 +126,7 @@ def convert(cf):
                amsc_data['description'] = f"{amsc_data['description']}\nRequest Stage-in from tape here:\n{d_entry['fn.tape_stage_in']}"
 
             if amsc_data.get("fqn") and not amscc.get(amsc_data["fqn"]):
-                print("we think we migrated it, but its gone...")
+                logging.debug("we think we migrated it, but its gone...")
                 del amsc_data["fqn"]
 
             if not amsc_data.get("fqn",None):
@@ -152,7 +152,7 @@ def convert(cf):
                     )
             else:
                 # previously migrated: update
-                duflag = fc.getboolean("general","update_by_delete_add", fallback=False)
+                duflag = cf.getboolean("general","update_by_delete_add", fallback=False)
                 if duflag:
                     res_data = amscc.delete_catalog(amsc_data)
                     res_data = amscc.post_create(amsc_data)
@@ -169,19 +169,19 @@ def convert(cf):
             file_entry = mcc.get_file(name = file_info["name"], namespace = file_info["namespace"], with_datasets=True)
             amsc_data = field_convert(file_entry, fc)
 
-            print(f"{file_info=}")
+            logging.debug(f"{file_info=}")
 
             if not amsc_data.get("parent_fqn", ""):
-                print(f"Skipping file {file_info['name']}, parent dataset not migrated")
+                logging.debug(f"Skipping file {file_info['name']}, parent dataset not migrated")
                 continue
 
             if amsc_data.get("fqn") and not amscc.get(amsc_data["fqn"]):
-                print("we think we migrated it, but its gone...")
+                logging.debug("we think we migrated it, but its gone...")
                 del amsc_data["fqn"]
 
             if not amsc_data.get("fqn",None):
                 # not previously migrated, or deleted
-                print(f"I would post {json.dumps(amsc_data,indent=4)}")
+                logging.debug(f"I would post {json.dumps(amsc_data,indent=4)}")
                 if "fqn" in amsc_data:
                     del amsc_data["fqn"]
                 if "updated_by" in amsc_data:

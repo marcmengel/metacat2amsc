@@ -25,7 +25,7 @@ class AmSCClient:
 
     def post_create(self, entity_dict):
         url = f"{self.amsc_url}/catalog/{self.catalog_name}/{entity_dict['type']}"
-        logger.debug(f"posting {json.dumps(entity_dict, indent=4)} to {url}")
+        logger.debug(f"POST-ing {json.dumps(entity_dict, indent=4)} to {url}")
         logger.debug(f"..with headers {self.sess.headers}")
         resp = self.sess.post(url , json=entity_dict)
         if resp.status_code != 200: 
@@ -48,7 +48,7 @@ class AmSCClient:
 
     def put_update(self, entity_dict):
         url = f"{self.amsc_url}/catalog/{entity_dict['fqn']}"
-        logger.debug(f"posting {json.dumps(entity_dict, indent=4)} to {url}")
+        logger.debug(f"PUT-ing {json.dumps(entity_dict, indent=4)} to {url}")
         logger.debug(f"..with headers {self.sess.headers}")
         resp = self.sess.put(url, json=entity_dict)
         if resp.status_code != 200:
@@ -59,10 +59,9 @@ class AmSCClient:
     def delete_item(self, entity):
         if isinstance(dict,entity):
             url = f"{self.amsc_url}/catalog/{entity['fqn']}"
-            logger.debug(f"deleting {json.dumps(entity_dict, indent=4)} to {url}")
         else:
             url = f"{self.amsc_url}/catalog/{entity}"
-            logger.debug(f"deleting to {url}")
+        logger.debug(f"DELETE-ing {url}")
         logger.debug(f"..with headers {self.sess.headers}")
         resp = self.sess.delete(url)
         if resp.status_code != 200:
