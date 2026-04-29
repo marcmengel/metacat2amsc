@@ -106,6 +106,7 @@ def convert(cf):
     mcc = MetaCatClient()
     fc = fqncache(mcc)
     amscc = AmSCClient(cf)
+    duflag = cf.getboolean("general", "update_by_delete_add", fallback=False)
 
     # mcc.login_token(cf.get("general", mcuser))
 
@@ -160,7 +161,6 @@ def convert(cf):
                     )
             else:
                 # previously migrated: update
-                duflag = cf.getboolean("general", "update_by_delete_add", fallback=False)
                 if duflag:
                     res_data = amscc.delete_item(amsc_data)
                     res_data = amscc.post_create(amsc_data)
