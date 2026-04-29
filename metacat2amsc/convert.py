@@ -8,7 +8,9 @@ import requests
 import urllib.parse
 import logging
 import traceback
+
 logger = logging.getLogger(__name__)
+
 
 class fqncache:
     def __init__(self, mcc):
@@ -24,7 +26,7 @@ class fqncache:
 
     def lookup_fqn(self, namespace, name):
         did = f"{namespace}:{name}"
-        if not self.fqnmap.get(did,""):
+        if not self.fqnmap.get(did, ""):
             logging.debug(f"looking up fqn for {did}...")
             try:
                 md = self.mcc.get_dataset(did=did)
@@ -39,7 +41,7 @@ class fqncache:
                 logging.debug(f"no fqn found in metadata {md=}")
                 exit(1)
 
-        if not  self.fqnmap.get(did, ""):
+        if not self.fqnmap.get(did, ""):
             logger.warning(f"Error: Unable to find fqn for: {did}")
         return self.fqnmap.get(did, "")
 
@@ -47,33 +49,35 @@ class fqncache:
 def field_convert(entry, fc):
     res = {}
     extra = {
-       "converter": "meta_cat2amsc",
-       "converter_version": __version,
+        "converter": "meta_cat2amsc",
+        "converter_version": __version,
     }
     for k in entry:
         if k in meta2amsc_dict:
-             if entry[k]:
-                 res[meta2amsc_dict[k]] = entry[k]
-             else:
-                 res[meta2amsc_dict[k]] = None
+            if entry[k]:
+                res[meta2amsc_dict[k]] = entry[k]
+            else:
+                res[meta2amsc_dict[k]] = None
         else:
-             if k not in ("metadata",) and entry[k]:
-                 extra[f"MetaCat.{k}"] = entry[k]
+            if k not in ("metadata",) and entry[k]:
+                extra[f"MetaCat.{k}"] = entry[k]
 
     for k in entry["metadata"]:
         if k in meta2amsc_dict:
-             if entry["metadata"][k]:
-                 res[meta2amsc_dict[k]] = entry["metadata"][k]
-             else:
-                 res[meta2amsc_dict[k]] = None
+            if entry["metadata"][k]:
+                res[meta2amsc_dict[k]] = entry["metadata"][k]
+            else:
+                res[meta2amsc_dict[k]] = None
         else:
-             if k not in ("metadata",) and entry["metadata"][k]:
-                 extra[k] = entry["metadata"][k]
+            if k not in ("metadata",) and entry["metadata"][k]:
+                extra[k] = entry["metadata"][k]
 
     # special conversion cases:
     if "parent_fqn" in res and res["parent_fqn"]:
         try:
-            res["parent_fqn"] = ",".join([ fc.lookup_fqn(x["namespace"], x["name"]) for x in res["parent_fqn"] ])
+            res["parent_fqn"] = ",".join(
+                [fc.lookup_fqn(x["namespace"], x["name"]) for x in res["parent_fqn"]]
+            )
         except:
             logging.debug(f"unable to convert parent_fqn: {repr(res['parent_fqn'])}!")
             res["parent_fqn"] = ""
@@ -85,24 +89,25 @@ def field_convert(entry, fc):
     # res["extra"] = extra
     return res
 
+
 def convert(cf):
     logging.debug("entering convert")
     mcsu = cf.get("metacat", "server_url")
     mcasu = cf.get("metacat", "auth_server_url")
-    #mcuser = cf.get("metacat", "user")
+    # mcuser = cf.get("metacat", "user")
 
     # in development, we need an ssh tunnel to get to the AMSC API..."
     tunnel = cf.get("general", "tunnel_command")
     if tunnel:
-        logging.debug(f"running: {tunnel}") 
+        logging.debug(f"running: {tunnel}")
         os.system(tunnel)
 
-    #mcc = MetaCatClient(server_url=mcsu, auth_server_url=mcasu)
+    # mcc = MetaCatClient(server_url=mcsu, auth_server_url=mcasu)
     mcc = MetaCatClient()
     fc = fqncache(mcc)
     amscc = AmSCClient(cf)
 
-    #mcc.login_token(cf.get("general", mcuser))
+    # mcc.login_token(cf.get("general", mcuser))
 
     queries_list = cf.get("general", "query_list", fallback="general").split(" ")
     logging.debug(f"{queries_list=}")
@@ -118,18 +123,20 @@ def convert(cf):
             logging.debug(f"{d_entry=}")
             amsc_data = field_convert(d_entry, fc)
 
-            if 'fn.locations' in d_entry and d_entry['fn.locations']:
-               amsc_data['description'] += "\nAvailable via:"
-               for loc in d_entry['fn.locations']:
-                   amsc_data['description'] =  f"{amsc_data['description']}\n* {loc}"
-            if 'fn.tape_stage_in' in d_entry and d_entry['fn.tape_stage_in']:
-               amsc_data['description'] = f"{amsc_data['description']}\nRequest Stage-in from tape here:\n{d_entry['fn.tape_stage_in']}"
+            if "fn.locations" in d_entry and d_entry["fn.locations"]:
+                amsc_data["description"] += "\nAvailable via:"
+                for loc in d_entry["fn.locations"]:
+                    amsc_data["description"] = f"{amsc_data['description']}\n* {loc}"
+            if "fn.tape_stage_in" in d_entry and d_entry["fn.tape_stage_in"]:
+                amsc_data[
+                    "description"
+                ] = f"{amsc_data['description']}\nRequest Stage-in from tape here:\n{d_entry['fn.tape_stage_in']}"
 
             if amsc_data.get("fqn") and not amscc.get(amsc_data["fqn"]):
                 logging.debug("we think we migrated it, but its gone...")
                 del amsc_data["fqn"]
 
-            if not amsc_data.get("fqn",None):
+            if not amsc_data.get("fqn", None):
                 # not previously migrated, or deleted
                 if "fqn" in amsc_data:
                     del amsc_data["fqn"]
@@ -143,16 +150,17 @@ def convert(cf):
 
                 if "fqn" in res_data:
                     # remember fqn, and update in metacat
-                    fc.register_fqn(d_entry['namespace'], d_entry['name'], res_data.get("fqn",None))
+                    fc.register_fqn(
+                        d_entry["namespace"], d_entry["name"], res_data.get("fqn", None)
+                    )
 
-                    
                     mcc.update_dataset(
                         dataset=f'{d_entry["namespace"]}:{d_entry["name"]}',
-                        metadata={"AmSC.common.fqn":res_data.get("fqn", "")},
+                        metadata={"AmSC.common.fqn": res_data.get("fqn", "")},
                     )
             else:
                 # previously migrated: update
-                duflag = cf.getboolean("general","update_by_delete_add", fallback=False)
+                duflag = cf.getboolean("general", "update_by_delete_add", fallback=False)
                 if duflag:
                     res_data = amscc.delete_item(amsc_data)
                     res_data = amscc.post_create(amsc_data)
@@ -160,26 +168,33 @@ def convert(cf):
                     res_data = amscc.put_update(amsc_data)
 
                 # remember fqn
-                fc.register_fqn(d_entry['namespace'], d_entry['name'], res_data.get("fqn",None))
-            
+                fc.register_fqn(
+                    d_entry["namespace"], d_entry["name"], res_data.get("fqn", None)
+                )
 
         file_list = mcc.query(fq)
         for file_info in file_list:
 
-            file_entry = mcc.get_file(name = file_info["name"], namespace = file_info["namespace"], with_datasets=True)
+            file_entry = mcc.get_file(
+                name=file_info["name"],
+                namespace=file_info["namespace"],
+                with_datasets=True,
+            )
             amsc_data = field_convert(file_entry, fc)
 
             logging.debug(f"{file_info=}")
 
             if not amsc_data.get("parent_fqn", ""):
-                logging.debug(f"Skipping file {file_info['name']}, parent dataset not migrated")
+                logging.debug(
+                    f"Skipping file {file_info['name']}, parent dataset not migrated"
+                )
                 continue
 
             if amsc_data.get("fqn") and not amscc.get(amsc_data["fqn"]):
                 logging.debug("we think we migrated it, but its gone...")
                 del amsc_data["fqn"]
 
-            if not amsc_data.get("fqn",None):
+            if not amsc_data.get("fqn", None):
                 # not previously migrated, or deleted
                 logging.debug(f"I would post {json.dumps(amsc_data,indent=4)}")
                 if "fqn" in amsc_data:
@@ -188,10 +203,10 @@ def convert(cf):
                     del amsc_data["updated_by"]
                 res_data = amscc.post_create(amsc_data)
                 if "fqn" in res_data:
-                    mcc.update_file( 
+                    mcc.update_file(
                         namespace=file_info["namespace"],
                         name=file_info["name"],
-                        metadata={"AmSC.common.fqn": res_data["fqn"]}
+                        metadata={"AmSC.common.fqn": res_data["fqn"]},
                     )
             else:
                 # previously migrated
@@ -200,4 +215,3 @@ def convert(cf):
                     res_data = amscc.post_create(amsc_data)
                 else:
                     res_data = amscc.put_update(amsc_data)
-

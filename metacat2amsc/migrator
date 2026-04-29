@@ -4,25 +4,26 @@ import configparser
 from metacat2amsc.convert import convert, AmSCClient
 
 import logging
+
 logger = logging.getLogger(__name__)
+
 
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("-c", help="Config file", default="migrator.ini")
-    p.add_argument("-d", help="Debugging on", default=False, action='store_true')
-    p.add_argument("-q", help="Query instead" )
-    p.add_argument("-g", help="GET catalog fqn instead" )
-    p.add_argument("-D", help="DELETE catalog fqn instead" )
-
-    args = p.parse_args()
+    p.add_argument("-d", help="Debugging on", default=False, action="store_true")
+    p.add_argument("-q", help="Query instead")
+    p.add_argument("-g", help="GET catalog fqn instead")
+    p.add_argument("-D", help="DELETE catalog fqn instead")
 
     level = logging.INFO
+    args = p.parse_args()
     if args.d:
         level = logging.DEBUG
 
     config = configparser.ConfigParser()
     config.read(args.c)
-    if config.get("general","debug",fallback=False):
+    if config.get("general", "debug", fallback=False):
         level = logging.DEBUG
 
     logging.basicConfig(level=level)
@@ -42,10 +43,9 @@ def main():
         res = c.delete_item(args.D)
         print(f"DELETE Result: {repr(res)}")
         exit(0)
-    
+
     convert(config)
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
