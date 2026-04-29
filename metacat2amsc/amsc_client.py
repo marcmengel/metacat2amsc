@@ -57,7 +57,7 @@ class AmSCClient:
         return resp.json()
 
     def delete_item(self, entity):
-        if isinstance(dict,entity):
+        if isinstance(entity, dict):
             url = f"{self.amsc_url}/catalog/{entity['fqn']}"
         else:
             url = f"{self.amsc_url}/catalog/{entity}"
