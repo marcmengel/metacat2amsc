@@ -7,6 +7,7 @@ import json
 import requests
 import urllib.parse
 import logging
+import time
 import traceback
 
 logger = logging.getLogger(__name__)
@@ -102,6 +103,19 @@ def convert(cf):
         logging.debug(f"running: {tunnel}")
         os.system(tunnel)
 
+    timestamp = ""
+    timestamp_file = cf.get("general", "timestamp_file")
+
+    if timestamp_file:
+        if os.path.exists(timestamp_file):
+            logging.debug(f"getting last run time from {timestamp_file=}")
+            sbuf = os.stat(timestamp_file)
+            timestamp = time.strftime("%Y-%m-%dT%H:%M:%S%z",time.gmtime(sbuf.st_mtime))
+            logging.debug(f"got {timestamp=}")
+            
+        # update time on timestamp file
+        open(timestamp_file,mode='a').close()
+
     # mcc = MetaCatClient(server_url=mcsu, auth_server_url=mcasu)
     mcc = MetaCatClient()
     fc = fqncache(mcc)
@@ -116,6 +130,9 @@ def convert(cf):
 
         fq = cf.get(qsect, "file_query")
         dq = cf.get(qsect, "dataset_query")
+
+        if timestamp:
+            fq = f"{fq} and updated_timestamp > '{timestamp}'"
 
         logging.debug(f"querying: {dq}")
         dataset_list = list(mcc.query(dq, with_metadata=True, with_provenance=True))
