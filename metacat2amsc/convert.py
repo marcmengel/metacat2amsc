@@ -110,11 +110,11 @@ def convert(cf):
         if os.path.exists(timestamp_file):
             logging.debug(f"getting last run time from {timestamp_file=}")
             sbuf = os.stat(timestamp_file)
-            timestamp = time.strftime("%Y-%m-%dT%H:%M:%S%z",time.gmtime(sbuf.st_mtime))
+            timestamp = time.strftime("%Y-%m-%dT%H:%M:%S%z", time.gmtime(sbuf.st_mtime))
             logging.debug(f"got {timestamp=}")
-            
+
         # update time on timestamp file
-        open(timestamp_file,mode='a').close()
+        open(timestamp_file, mode="a").close()
 
     # mcc = MetaCatClient(server_url=mcsu, auth_server_url=mcasu)
     mcc = MetaCatClient()
