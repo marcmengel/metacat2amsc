@@ -93,8 +93,8 @@ def field_convert(entry, fc):
 
 def convert(cf):
     logging.debug("entering convert")
-    mcsu = cf.get("metacat", "server_url")
-    mcasu = cf.get("metacat", "auth_server_url")
+    mcsu = cf.get("metacat", "server_url", fallback=os.environ.get("METACAT_SERVER_URL",None))
+    mcasu = cf.get("metacat", "auth_server_url", fallback=os.environ.get("METACAT_AUTH_SERVER_URL",None))
     # mcuser = cf.get("metacat", "user")
 
     # in development, we need an ssh tunnel to get to the AMSC API..."
@@ -104,7 +104,7 @@ def convert(cf):
         os.system(tunnel)
 
     timestamp = ""
-    timestamp_file = cf.get("general", "timestamp_file")
+    timestamp_file = cf.get("general", "timestamp_file", fallback="")
 
     if timestamp_file:
         if os.path.exists(timestamp_file):
@@ -116,27 +116,53 @@ def convert(cf):
         # update time on timestamp file
         open(timestamp_file, mode="a").close()
 
-    # mcc = MetaCatClient(server_url=mcsu, auth_server_url=mcasu)
-    mcc = MetaCatClient()
+    mcc = MetaCatClient(server_url=mcsu, auth_server_url=mcasu)
+
     fc = fqncache(mcc)
     amscc = AmSCClient(cf)
     duflag = cf.getboolean("general", "update_by_delete_add", fallback=False)
 
-    # mcc.login_token(cf.get("general", mcuser))
+    do_htgettoken = cf.get("metacat", "htgettoken", fallback="")
+    if do_htgettoken:
+        os.system(do_htgettoken)
+    
+    login_user = cf.get("metacat", "user", fallback="")
+    if login_user:
+	mcc.login_token(login_user)
 
-    queries_list = cf.get("general", "query_list", fallback="general").split(" ")
+    queries_list = cf.get("general", "query_list", fallback="").split(" ")
+    if not queries_list:
+        queries_exceptions_pat = cf.get("general", "query_exceptions_pat", fallback=".*")
+        queries_list = [
+           x['name'] 
+           for x in mcc.list_namespaces() 
+               if not re.search(queries_exceptions_pat, x['name'])
+        ]
+
+    fqt = cf.get("general", "file_query_template", "")
+    dqt = cf.get("general", "dataset_query_template", "")
+
     logging.debug(f"{queries_list=}")
-    for qsect in queries_list:
 
-        fq = cf.get(qsect, "file_query")
-        dq = cf.get(qsect, "dataset_query")
+    for namespace in queries_list:
+
+        if fqt:
+            fq = fqt.replace('{namespace}', namespace)
+        else:
+	    fq = cf.get(qsect, "file_query", "")
+        
+        if dqt:
+            dq = dqt.replace('{namespace}', namespace)
+        else:
+	    dq = cf.get(namespace, "dataset_query")
 
         if timestamp:
             fq = f"{fq} and updated_timestamp > '{timestamp}'"
+            # would like to do this for dataset query, but datasets
+            # don't *have* an updated_timestamp...
 
         logging.debug(f"querying: {dq}")
         dataset_list = list(mcc.query(dq, with_metadata=True, with_provenance=True))
-
         for d_entry in dataset_list:
             logging.debug(f"{d_entry=}")
             amsc_data = field_convert(d_entry, fc)
