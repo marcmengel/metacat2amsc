@@ -7,6 +7,7 @@ import json
 import requests
 import urllib.parse
 import logging
+import re
 import time
 import traceback
 
@@ -128,19 +129,19 @@ def convert(cf):
     
     login_user = cf.get("metacat", "user", fallback="")
     if login_user:
-	mcc.login_token(login_user)
+        mcc.login_token(login_user)
 
     queries_list = cf.get("general", "query_list", fallback="").split(" ")
-    if not queries_list:
-        queries_exceptions_pat = cf.get("general", "query_exceptions_pat", fallback=".*")
+    if not queries_list or not queries_list[0]:
+        namespace_skip_pat = cf.get("general", "namespace_skip_pat", fallback=".*")
         queries_list = [
            x['name'] 
            for x in mcc.list_namespaces() 
-               if not re.search(queries_exceptions_pat, x['name'])
+               if not re.search(namespace_skip_pat, x['name'])
         ]
 
-    fqt = cf.get("general", "file_query_template", "")
-    dqt = cf.get("general", "dataset_query_template", "")
+    fqt = cf.get("general", "file_query_template", fallback="")
+    dqt = cf.get("general", "dataset_query_template", fallback="")
 
     logging.debug(f"{queries_list=}")
 
@@ -149,12 +150,12 @@ def convert(cf):
         if fqt:
             fq = fqt.replace('{namespace}', namespace)
         else:
-	    fq = cf.get(qsect, "file_query", "")
+            fq = cf.get(qsect, "file_query", "")
         
         if dqt:
             dq = dqt.replace('{namespace}', namespace)
         else:
-	    dq = cf.get(namespace, "dataset_query")
+            dq = cf.get(namespace, "dataset_query")
 
         if timestamp:
             fq = f"{fq} and updated_timestamp > '{timestamp}'"
