@@ -13,6 +13,7 @@ class AmSCClient:
         self.amsc_url = cf.get("general", "amsc_url")
         self.catalog_name = cf.get("general", "catalog_name")
         self.sess = requests.Session()
+        self.sess.stream = False  # turn off streaming so we reuse the connection...
         # self.sess.headers.update( {"Authorization": cf.get("openmetadata","jwt_token")})
         self.sess.headers.update(
             {"Authorization": f'Bearer {cf.get("openmetadata","jwt_token")}'}
