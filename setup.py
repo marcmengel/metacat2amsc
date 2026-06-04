@@ -1,5 +1,6 @@
 from setuptools import setup, find_packages
 import pathlib
+from metacat2amsc.version import __version
 
 here = pathlib.Path(__file__).parent.resolve()
 
@@ -12,7 +13,7 @@ def wrap_find_packages(*args, **kwargs):
 long_description = (here / "README.md").read_text(encoding="utf-8")
 setup(
     name = "metacat2amsc",
-    version = "0.6",
+    version = __version,
     long_description_content_type="text/markdown",
     author= "Marc Mengel", 
     author_email="mengel@fnal.gov",
