@@ -115,7 +115,7 @@ def convert(cf):
             logging.debug(f"got {timestamp=}")
 
         # update time on timestamp file
-        open(timestamp_file, mode="a").close()
+        open(timestamp_file, mode="w").close()
 
     mcc = MetaCatClient(server_url=mcsu, auth_server_url=mcasu)
 
