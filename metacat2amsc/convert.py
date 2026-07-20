@@ -91,8 +91,9 @@ def field_convert(entry, fc):
     # res["extra"] = extra
     return res
 
-
 def convert(cf):
+    migrated_files = []
+    migrated_datasets = []
     logging.debug("entering convert")
     mcsu = cf.get("metacat", "server_url", fallback=os.environ.get("METACAT_SERVER_URL",None))
     mcasu = cf.get("metacat", "auth_server_url", fallback=os.environ.get("METACAT_AUTH_SERVER_URL",None))
@@ -104,7 +105,8 @@ def convert(cf):
         logging.debug(f"running: {tunnel}")
         os.system(tunnel)
 
-    timestamp = ""
+    # default timestamp to epoch...
+    timestamp = "1970-01-01T00:00:00+00"
     timestamp_file = cf.get("general", "timestamp_file", fallback="")
 
     if timestamp_file:
@@ -157,10 +159,11 @@ def convert(cf):
         else:
             dq = cf.get(namespace, "dataset_query")
 
-        if timestamp:
+
+        if fq.find("%timestamp") > 0:
+           fq = fq.replace('%timestamp', f"'{timestamp}'") 
+        else:
             fq = f"{fq} and updated_timestamp > '{timestamp}'"
-            # would like to do this for dataset query, but datasets
-            # don't *have* an updated_timestamp...
 
         logging.debug(f"querying: {dq}")
         dataset_list = list(mcc.query(dq, with_metadata=True, with_provenance=True))
@@ -216,6 +219,8 @@ def convert(cf):
                     d_entry["namespace"], d_entry["name"], res_data.get("fqn", None)
                 )
 
+            migrated_datasets.append(f'{d_entry["namespace"]}:{d_entry["name"]}')
+
         file_list = mcc.query(fq)
         for file_info in file_list:
 
@@ -259,3 +264,45 @@ def convert(cf):
                     res_data = amscc.post_create(amsc_data)
                 else:
                     res_data = amscc.put_update(amsc_data)
+
+            migrated_files.append(f'{file_info["namespace"]}:{file_info["name"]}')
+
+    # update timestamp again at end
+    if timestamp_file:
+        open(timestamp_file, mode="w").close()
+
+    # check for files/datasets that appeared since we started, but didn't get migrated,
+    # and bump their dates so the next run will pick them up
+  
+    for namespace in queries_list:
+
+        if fqt:
+            fq = fqt.replace('{namespace}', namespace)
+        else:
+            fq = cf.get(qsect, "file_query", "")
+        
+        if dqt:
+            dq = dqt.replace('{namespace}', namespace)
+        else:
+            dq = cf.get(namespace, "dataset_query")
+
+        if fq.find("%timestamp") > 0:
+           fq = fq.replace('%timestamp', f"'{timestamp}'") 
+        else:
+            fq = f"{fq} and updated_timestamp > '{timestamp}'"
+
+        logging.debug(f"re-querying: {dq}")
+        dataset_list = list(mcc.query(dq, with_metadata=True, with_provenance=True))
+        for d_entry in dataset_list:
+
+            did = f"{d_entry['namespace']}:{d_entry['name']}" 
+            if not did in migrated_datasets:
+                # the type should already be this, this just fixes the update_timestamp
+                mcc.update_dataset( did, metadata={"AmSC.common.type": "scientificWork"})
+
+        file_list = mcc.query(fq)
+        for file_info in file_list:
+            did = f"{d_entry['namespace']}:{d_entry['name']}" 
+            if not did in migrated_files:
+                # the type should already be this, this just fixes the update_timestamp
+                mcc.update_file_metadata( {"AmSC.common.type", "artifact"}, dids=[did])
