@@ -116,8 +116,9 @@ def convert(cf):
             timestamp = time.strftime("%Y-%m-%dT%H:%M:%S%z", time.gmtime(sbuf.st_mtime))
             logging.debug(f"got {timestamp=}")
 
-        # update time on timestamp file
+        # update time on timestamp file, save start time
         open(timestamp_file, mode="w").close()
+        start_timestamp = time.strftime("%Y-%m-%dT%H:%M:%S%z", time.gmtime(time.time()))
 
     mcc = MetaCatClient(server_url=mcsu, auth_server_url=mcasu)
 
@@ -272,7 +273,9 @@ def convert(cf):
         open(timestamp_file, mode="w").close()
 
     # check for files/datasets that appeared since we started, but didn't get migrated,
-    # and bump their dates so the next run will pick them up
+    # and bump their dates so the next run will pick them up.
+    # we could try to migrate them, but that leads to a hall of mirrors where we 
+    # then have to migrate any files declared while *that* pass was running, etc.
   
     for namespace in queries_list:
 
@@ -287,9 +290,9 @@ def convert(cf):
             dq = cf.get(namespace, "dataset_query")
 
         if fq.find("%timestamp") > 0:
-           fq = fq.replace('%timestamp', f"'{timestamp}'") 
+           fq = fq.replace('%timestamp', f"'{start_timestamp}'") 
         else:
-            fq = f"{fq} and updated_timestamp > '{timestamp}'"
+            fq = f"{fq} and updated_timestamp > '{start_timestamp}'"
 
         logging.debug(f"re-querying: {dq}")
         dataset_list = list(mcc.query(dq, with_metadata=True, with_provenance=True))
