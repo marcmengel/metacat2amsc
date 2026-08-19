@@ -153,7 +153,7 @@ def convert(cf):
         if fqt:
             fq = fqt.replace('{namespace}', namespace)
         else:
-            fq = cf.get(qsect, "file_query", "")
+            fq = cf.get(namespace, "file_query", "")
         
         if dqt:
             dq = dqt.replace('{namespace}', namespace)
